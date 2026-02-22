@@ -265,8 +265,8 @@ function getOffsetTimeIST(minutesOffset: number): string {
 export async function POST(req: Request) {
   try {
     const timeNow = getOffsetTimeIST(0);
-    const timeMinus5 = getOffsetTimeIST(-3);
-    const timeMinus10 = getOffsetTimeIST(-6);
+    const timeMinus5 = getOffsetTimeIST(-5);
+    const timeMinus10 = getOffsetTimeIST(-10);
     const timePlus30 = getOffsetTimeIST(30);
 
     console.log(`[SYSTEM] Heartbeat | Now: ${timeNow} | Retries: ${timeMinus5}, ${timeMinus10}`);
@@ -321,9 +321,17 @@ export async function POST(req: Request) {
     console.log(`[SIGNAL] Executing ${callsToMake.length} calls (Includes Retries).`);
 
     // STEP 4: Lock the new 'pending' rows so they aren't processed twice
+    // STEP 4: Lock ALL grouped 'pending' rows so they update together
     const newMedsToLock = allPatientMeds!
-      .filter(m => m.time_due === timeNow && m.call_status === 'pending')
+      .filter(m => m.call_status === 'pending')
       .map(m => m.id);
+    
+    if (newMedsToLock.length > 0) {
+      await supabase
+        .from('medication_schedules')
+        .update({ call_status: 'processed' })
+        .in('id', newMedsToLock);
+    }
     
     if (newMedsToLock.length > 0) {
       await supabase
